@@ -57,3 +57,6 @@ jobs:
         script: |
            chmod +x ./startup.sh
            ./startup.sh
+
+    - name: Run SonarQube
+      run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
