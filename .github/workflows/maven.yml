@@ -59,4 +59,4 @@ jobs:
            ./startup.sh
 
     - name: Run SonarQube
-      run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
+      run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.projectName="ssacthree-gateway" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
