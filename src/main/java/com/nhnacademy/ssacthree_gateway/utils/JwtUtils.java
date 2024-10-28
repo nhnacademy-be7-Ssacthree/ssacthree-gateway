@@ -66,4 +66,12 @@ public class JwtUtils {
             return null;
         }
     }
+    // JwtUtils.java (변경된 부분 추가)
+    public String generateToken(String username) {
+        return Jwts.builder()
+                .claim("username", username)
+                .signWith(secretKey)
+                .compact();
+    }
+
 }
