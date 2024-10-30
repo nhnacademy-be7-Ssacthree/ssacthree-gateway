@@ -22,7 +22,7 @@ public class JwtUtils {
     // 주어진 토큰의 유효성 검사
     public boolean isTokenValid(String token) {
         try {
-            Jwts.parser()
+            Jwts.parserBuilder()
                     .setSigningKey(secretKey)
                     .build()
                     .parseClaimsJws(token);
@@ -56,7 +56,7 @@ public class JwtUtils {
     // 토큰에서 Claims 정보를 파싱하여 반환
     private Claims parseClaims(String token) {
         try {
-            return Jwts.parser()
+            return Jwts.parserBuilder()
                     .setSigningKey(secretKey)
                     .build()
                     .parseClaimsJws(token)
@@ -66,12 +66,4 @@ public class JwtUtils {
             return null;
         }
     }
-    // JwtUtils.java (변경된 부분 추가)
-    public String generateToken(String username) {
-        return Jwts.builder()
-                .claim("username", username)
-                .signWith(secretKey)
-                .compact();
-    }
-
 }
