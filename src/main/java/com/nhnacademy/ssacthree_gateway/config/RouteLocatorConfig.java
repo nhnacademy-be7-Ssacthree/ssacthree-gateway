@@ -20,7 +20,7 @@ public class RouteLocatorConfig {
                 )
                 .route("auth-service",
                         p -> p.path("/api/auth/**")
-                                .uri("lb://AUTH-SERVICE")
+                                .uri("http://localhost:8084/")
                 )
                 .build();
     }
