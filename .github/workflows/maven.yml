@@ -52,8 +52,7 @@ jobs:
           script_stop: true
           script: |
             fuser -k 8081/tcp || echo "No process on 8081"
-            chmod +x ./eureka_startup.sh
-            ./gateway_startup.sh
+            chmod +x ./gateway_startup.sh
             ./gateway_startup.sh
       - name: Run SonarQube
         run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.projectName="ssacthree-gateway" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
