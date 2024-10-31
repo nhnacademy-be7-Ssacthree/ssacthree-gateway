@@ -10,9 +10,9 @@ name: Java CI with Maven
 
 on:
   push:
-    branches: [ "main","develop" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main","develop" ]
+    branches: [ "main", "develop" ]
 
 jobs:
   build:
@@ -28,8 +28,10 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: Build with Maven
-        run: mvn -B package --file pom.xml
-
+        run: mvn -B clean package --file pom.xml
+      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
+      - name: Update dependency graph
+        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
       - name : upload file
         uses: appleboy/scp-action@master
         with:
@@ -40,7 +42,6 @@ jobs:
           source: "target/*.jar"
           target: "~/"
           rm: false
-
       - name: execute shell script
         uses: appleboy/ssh-action@master
         with:
@@ -49,10 +50,8 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script_stop: true
-          script: "./eureka_startup.sh"
-
+          script: |
+            chmod +x ./startup.sh
+            ./startup.sh
       - name: Run SonarQube
-        run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-eureka -Dsonar.projectName="ssacthree-eureka" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
-      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
-      - name: Update dependency graph
-        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+        run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.projectName="ssacthree-gateway" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
