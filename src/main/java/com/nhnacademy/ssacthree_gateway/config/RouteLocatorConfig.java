@@ -15,7 +15,7 @@ public class RouteLocatorConfig {
                 //해당 경로로 요청이 오면, 각 서비스로 로드밸런싱(lb)
                 .route("shop-service",
                         p->p.path("/api/shop/**")
-                                .filters(f -> f.filter(jwtAuthorizationFilter.apply(new JwtAuthorizationFilter.Config()))) //jwt 토큰 검증
+//                                .filters(f -> f.filter(jwtAuthorizationFilter.apply(new JwtAuthorizationFilter.Config()))) //jwt 토큰 검증
                                 .uri("lb://SHOP-SERVICE")
                 )
                 .route("auth-service",
