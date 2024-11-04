@@ -30,6 +30,7 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
         this.jwtUtil = jwtUtil;
     }
     // 쓸 변수들 넣어주는거임.
+    // TODO : 얘네 자꾸 널 떠 서 미치겠음. 이거 만 해결하면 됨 .
     @Getter
     @Setter
     public static class Config {
