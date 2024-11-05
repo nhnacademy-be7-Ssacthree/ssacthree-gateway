@@ -1,7 +1,10 @@
 package com.nhnacademy.ssacthree_gateway.filter;
 
+import com.nhnacademy.ssacthree_gateway.config.PathConfig;
 import com.nhnacademy.ssacthree_gateway.util.JWTUtil;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 
@@ -24,30 +28,32 @@ import org.springframework.web.server.ServerWebExchange;
 public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
 
     private final JWTUtil jwtUtil;
-
-    public JWTFilter(JWTUtil jwtUtil) {
+    private final PathConfig pathConfig;
+    public JWTFilter(JWTUtil jwtUtil, PathConfig pathConfig) {
         super(Config.class);
         this.jwtUtil = jwtUtil;
+        this.pathConfig = pathConfig;
     }
+
     // 쓸 변수들 넣어주는거임.
     // TODO : 얘네 자꾸 널 떠 서 미치겠음. 이거 만 해결하면 됨 .
-    @Getter
-    @Setter
     public static class Config {
-        private List<String> allowedPaths;
-        private List<String> adminPaths;
-        private List<String> memberPaths;
+
     }
 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
-
             String path = request.getURI().getPath();
 
-            // 경로가 설정된 allowedPaths에 포함되지 않으면 필터를 적용하지 않음
-            if (config.getAllowedPaths() != null && !config.getAllowedPaths().contains(path)) {
+            List<String> allowedPaths = Arrays.stream(pathConfig.getAllowedPaths().split(",")).toList();
+            List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(",")).toList();
+            List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
+
+            log.debug("admin path:{}",pathConfig.getAdminPaths());
+            // 경로가 설정된 allowedPaths에 포함되어 있으면 필터를 적용하지 않음
+            if (allowedPaths != null && allowedPaths.contains(path)) {
                 return chain.filter(exchange); // 필터를 건너뜀
             }
 
@@ -56,11 +62,12 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"토큰을 찾을 수 없거나, 유효하지않습니다.");
             }
 
-            String accessToken = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            String accessToken = Objects.requireNonNull(
+                request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).substring("Bearer ".length());
 
 
 
-            log.debug("accessToken: {}", accessToken);
+
 
             if(jwtUtil.isExpired(accessToken)) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"토큰이 만료되었습니다.");
@@ -69,18 +76,19 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             String memberLoginId = jwtUtil.getMemberLoginId(accessToken);
             String role = jwtUtil.getRole(accessToken);
 
-            if (config.getAdminPaths() != null && config.getAdminPaths().contains(path) && !"ROLE_ADMIN".equals(role)) {
+            if (adminPaths.contains(path) && !"ROLE_ADMIN".equals(role)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "어드민 권한이 필요합니다.");
             }
 
-            if (config.getMemberPaths() != null && config.getMemberPaths().contains(path) && !"ROLE_USER".equals(role)) {
+            if (memberPaths.contains(path) && !"ROLE_USER".equals(role)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
             }
 
-            ServerWebExchange modifiedExchange = exchange.mutate().request(builder -> builder.header("X-USER-ID",memberLoginId))
+//            ServerWebExchange modifiedExchange = exchange.mutate().request(builder -> builder.header("X-USER-ID",memberLoginId))
+//                .build();
+            exchange.mutate().request(builder -> builder.header("X-USER-ID", memberLoginId))
                 .build();
-
-            return chain.filter(modifiedExchange);
+            return chain.filter(exchange);
         };
     }
 }
