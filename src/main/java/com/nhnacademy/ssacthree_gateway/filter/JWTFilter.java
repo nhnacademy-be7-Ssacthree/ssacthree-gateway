@@ -49,7 +49,7 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
 
             log.debug("admin path:{}",pathConfig.getAdminPaths());
             // 경로가 설정된 allowedPaths에 포함되어 있으면 필터를 적용하지 않음
-            if (allowedPaths != null && allowedPaths.contains(path)) {
+            if (allowedPaths != null && allowedPaths.stream().anyMatch(path::startsWith)) {
                 return chain.filter(exchange); // 필터를 건너뜀
             }
 
@@ -72,11 +72,11 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             String memberLoginId = jwtUtil.getMemberLoginId(accessToken);
             String role = jwtUtil.getRole(accessToken);
 
-            if (adminPaths.contains(path) && !"ROLE_ADMIN".equals(role)) {
+            if (adminPaths.stream().anyMatch(path::startsWith) && !"ROLE_ADMIN".equals(role)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "어드민 권한이 필요합니다.");
             }
 
-            if (memberPaths.contains(path) && !"ROLE_USER".equals(role)) {
+            if (memberPaths.stream().anyMatch(path::startsWith) && !"ROLE_USER".equals(role)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
             }
 
