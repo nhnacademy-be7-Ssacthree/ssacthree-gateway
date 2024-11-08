@@ -39,7 +39,7 @@ jobs:
           username: ${{ secrets.SSH_ID }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "target/*.jar"
+          source: "target/ssacthree_gateway-0.0.1-SNAPSHOT.jar"
           target: "~/"
           rm: false
       - name: execute shell script
@@ -51,7 +51,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script_stop: true
           script: |
-            chmod +x ./startup.sh
-            ./startup.sh
+            fuser -k 8081/tcp || echo "No process on 8081"
+            chmod +x ./gateway_startup.sh
+            ./gateway_startup.sh
       - name: Run SonarQube
         run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.projectName="ssacthree-gateway" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
