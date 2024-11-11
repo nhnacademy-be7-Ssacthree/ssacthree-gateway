@@ -32,7 +32,7 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
     }
 
     // 쓸 변수들 넣어주는거임.
-    // TODO : 경로 확실히 구분 해서 검증 확실히 하기
+    // TODO : 경로 확실히 구분 해서 검증 확실히 하기 좀 골아픔
     public static class Config {
 
     }
@@ -80,8 +80,6 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
             }
 
-//            ServerWebExchange modifiedExchange = exchange.mutate().request(builder -> builder.header("X-USER-ID",memberLoginId))
-//                .build();
             exchange.mutate().request(builder -> builder.header("X-USER-ID", memberLoginId))
                 .build();
             return chain.filter(exchange);
