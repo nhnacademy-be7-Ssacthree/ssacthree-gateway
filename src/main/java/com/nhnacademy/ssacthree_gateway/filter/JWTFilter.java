@@ -58,14 +58,22 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             }
 
 
-            if(!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"토큰을 찾을 수 없거나, 유효하지않습니다.");
+
+            //수정 전  - 2024-11-12-00:36
+
+//            if(!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+//                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"토큰을 찾을 수 없거나, 유효하지않습니다.");
+//            }
+//
+//            String accessToken = Objects.requireNonNull(
+//                request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).substring("Bearer ".length());
+
+            //수정 후 - 2024-11-12-00:37
+            if(!request.getCookies().containsKey("access-token")) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
             }
 
-            String accessToken = Objects.requireNonNull(
-                request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).substring("Bearer ".length());
-
-
+            String accessToken = request.getCookies().get("access-token").get(0).toString().split("=")[1];
 
 
 
