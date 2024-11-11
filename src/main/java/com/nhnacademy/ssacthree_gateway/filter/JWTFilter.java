@@ -47,7 +47,11 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(",")).toList();
             List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
 
-            log.debug("admin path:{}",pathConfig.getAdminPaths());
+
+            //회원 가입의 경우 필터 태우면 안됨 ㅠ 일단은 더럽지만 이렇게 가자고.
+            if(path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
+                return chain.filter(exchange);
+            }
             // 경로가 설정된 allowedPaths에 포함되어 있으면 필터를 적용하지 않음
             if (allowedPaths != null && allowedPaths.stream().anyMatch(path::startsWith)) {
                 return chain.filter(exchange); // 필터를 건너뜀
