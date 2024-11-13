@@ -57,22 +57,25 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
                 return chain.filter(exchange); // 필터를 건너뜀
             }
 
-            //수정 전  - 2024-11-12-00:36
-
-//            if(!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-//                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"토큰을 찾을 수 없거나, 유효하지않습니다.");
-//            }
-//
-//            String accessToken = Objects.requireNonNull(
-//                request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).substring("Bearer ".length());
-
-            //수정 후 - 2024-11-12-00:37
             if (!request.getCookies().containsKey("access-token")) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
             }
 
             String accessToken = request.getCookies().get("access-token").get(0).toString()
                 .split("=")[1];
+
+            // 토큰 위조시... 이렇게 처리하면 될 것 같 긴 한 데 이 게 맞 나 .. ?
+//            try {
+//                if (jwtUtil.isExpired(accessToken)) {
+//                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
+//                }
+//            } catch (Exception e) {
+//                return exchange.getResponse().setComplete()
+//                    .then(Mono.fromRunnable(() -> {
+//                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+//                        exchange.getResponse().getHeaders().set("Clear-Site-Data", "\"cookies\"");
+//                    }));
+//            }
 
             if (jwtUtil.isExpired(accessToken)) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
