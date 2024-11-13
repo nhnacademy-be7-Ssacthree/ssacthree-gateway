@@ -52,6 +52,12 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             if(path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
                 return chain.filter(exchange);
             }
+            if (path.equals("/api/shop/carts")
+                && request.getMethod().toString().equals("POST")
+                && request.getQueryParams().containsKey("customerId")) {
+
+                return chain.filter(exchange); // 필터 통과
+            }
             // 경로가 설정된 allowedPaths에 포함되어 있으면 필터를 적용하지 않음
             if (allowedPaths != null && allowedPaths.stream().anyMatch(path::startsWith)) {
                 return chain.filter(exchange); // 필터를 건너뜀
