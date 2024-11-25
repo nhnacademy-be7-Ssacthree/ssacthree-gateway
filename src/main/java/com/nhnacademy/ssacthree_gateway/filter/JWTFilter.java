@@ -43,7 +43,7 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
 
             //회원 가입의 경우 필터 태우면 안됨 ㅠ 일단은 더럽지만 이렇게 가자고.
-            if (path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
+            if (!path.equals("api/shop/members/likes") && path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
                 return chain.filter(exchange);
             }
 
