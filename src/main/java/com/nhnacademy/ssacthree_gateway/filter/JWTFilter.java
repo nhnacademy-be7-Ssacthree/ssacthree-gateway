@@ -47,6 +47,9 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
                 return chain.filter(exchange);
             }
 
+            if (path.equals("/api/shop/search/books") && request.getMethod().toString().equals("GET")) {
+                return chain.filter(exchange);
+            }
 
             if (path.equals("/api/shop/carts/cart")
                 && request.getMethod().toString().equals("POST")
