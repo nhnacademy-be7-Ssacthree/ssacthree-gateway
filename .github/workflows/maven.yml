@@ -78,6 +78,9 @@ jobs:
 
             scrape_configs:
               - job_name: 'gateway-service'
+                basic_auth:
+                  username:'minji'
+                  password:'1234'
                 static_configs:
                   - targets: ['133.186.210.215:8080'] # 게이트웨이 메트릭 엔드포인트
             EOT
