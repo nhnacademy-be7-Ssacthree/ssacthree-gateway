@@ -7,25 +7,23 @@ import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
 @Configuration
 @RequiredArgsConstructor
 public class RouteLocatorConfig {
 
-    private final JWTFilter jwtUtil;
+    private final JWTFilter jwtFilter;
 
     @Bean
-    public RouteLocator myRoute(RouteLocatorBuilder builder, JWTFilter jWTFilter) {
+    public RouteLocator myRoute(RouteLocatorBuilder builder) {
         return builder.routes()
-            //해당 경로로 요청이 오면, 각 서비스로 로드밸런싱(lb)
             .route("shop-service",
                 p -> p.path("/api/shop/**")
-                    .filters(f -> f.filter(jwtUtil.apply(new JWTFilter.Config())))
+                    .filters(f -> f.filter(jwtFilter.apply(new Object()))) // null 대신 빈 객체 전달
                     .uri("lb://SHOP-SERVICE")
             )
             .route("auth-service",
                 p -> p.path("/api/auth/**")
-                    .filters(f -> f.filter(jwtUtil.apply(new JWTFilter.Config())))
+                    .filters(f -> f.filter(jwtFilter.apply(new Object()))) // null 대신 빈 객체 전달
                     .uri("lb://AUTH-SERVICE")
             )
             .build();

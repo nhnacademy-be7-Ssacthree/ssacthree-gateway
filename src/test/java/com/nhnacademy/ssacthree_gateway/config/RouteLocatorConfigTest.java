@@ -30,7 +30,7 @@ class RouteLocatorConfigTest {
 
     @BeforeEach
     void setUp() {
-        // JWTFilter 및 PathConfig Mock 설정
+        // PathConfig Mock 설정
         when(pathConfig.getAllowedPaths()).thenReturn("/api/allowed");
         when(pathConfig.getMemberPaths()).thenReturn("/api/member");
         when(pathConfig.getAdminPaths()).thenReturn("/api/admin");
@@ -38,16 +38,13 @@ class RouteLocatorConfigTest {
 
     @Test
     void testRouteLocatorConfig() {
-        // JWTFilter를 Mock하여, 필터의 동작을 확인
-        when(jwtFilter.apply(any(JWTFilter.Config.class))).thenReturn((exchange, chain) -> chain.filter(exchange));
+        // JWTFilter Mock 설정
+        when(jwtFilter.apply(null)).thenReturn((exchange, chain) -> chain.filter(exchange));
 
         // RouteLocator 설정
-        RouteLocator routeLocator = routeLocatorConfig.myRoute(builder, jwtFilter);
+        RouteLocator routeLocator = routeLocatorConfig.myRoute(builder);
 
-        // assertNotNull으로 routeLocator가 잘 생성되었는지 확인
+        // RouteLocator 검증
         assertThat(routeLocator).isNotNull();
     }
 }
-
-
-

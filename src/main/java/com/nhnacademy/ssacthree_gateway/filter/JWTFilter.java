@@ -12,38 +12,31 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
-
 @Component
 @Slf4j
-public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
+public class JWTFilter extends AbstractGatewayFilterFactory<Object> {
 
     private final JWTUtil jwtUtil;
     private final PathConfig pathConfig;
 
     public JWTFilter(JWTUtil jwtUtil, PathConfig pathConfig) {
-        super(Config.class);
+        super(Object.class);
         this.jwtUtil = jwtUtil;
         this.pathConfig = pathConfig;
     }
 
-    public static class Config {
-
-    }
-
     @Override
-    public GatewayFilter apply(Config config) {
+    public GatewayFilter apply(Object config) {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
             String path = request.getURI().getPath();
 
-            List<String> allowedPaths = Arrays.stream(pathConfig.getAllowedPaths().split(","))
-                .toList();
-            List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(","))
-                .toList();
+            List<String> allowedPaths = Arrays.stream(pathConfig.getAllowedPaths().split(",")).toList();
+            List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(",")).toList();
             List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
 
-            //회원 가입의 경우 필터 태우면 안됨 ㅠ 일단은 더럽지만 이렇게 가자고.
-            if (!path.equals("api/shop/members/likes") && path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
+            // 특정 경로에 대한 필터 우회 처리
+            if (path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
                 return chain.filter(exchange);
             }
 
@@ -54,33 +47,20 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             if (path.equals("/api/shop/carts/cart")
                 && request.getMethod().toString().equals("POST")
                 && request.getQueryParams().containsKey("customerId")) {
-
-                return chain.filter(exchange); // 필터 통과
-            }
-            // 경로가 설정된 allowedPaths에 포함되어 있으면 필터를 적용하지 않음
-            if (allowedPaths != null && allowedPaths.stream().anyMatch(path::startsWith)) {
-                return chain.filter(exchange); // 필터를 건너뜀
+                return chain.filter(exchange);
             }
 
+            // 허용된 경로라면 필터를 건너뜀
+            if (allowedPaths.stream().anyMatch(path::startsWith)) {
+                return chain.filter(exchange);
+            }
+
+            // 토큰 유효성 검사
             if (!request.getCookies().containsKey("access-token")) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
             }
 
-            String accessToken = request.getCookies().get("access-token").get(0).toString()
-                .split("=")[1];
-
-            // 토큰 위조시... 이렇게 처리하면 될 것 같 긴 한 데 이 게 맞 나 .. ?
-//            try {
-//                if (jwtUtil.isExpired(accessToken)) {
-//                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
-//                }
-//            } catch (Exception e) {
-//                return exchange.getResponse().setComplete()
-//                    .then(Mono.fromRunnable(() -> {
-//                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-//                        exchange.getResponse().getHeaders().set("Clear-Site-Data", "\"cookies\"");
-//                    }));
-//            }
+            String accessToken = request.getCookies().get("access-token").getFirst().toString().split("=")[1];
 
             if (jwtUtil.isExpired(accessToken)) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
@@ -89,6 +69,7 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
             String memberLoginId = jwtUtil.getMemberLoginId(accessToken);
             String role = jwtUtil.getRole(accessToken);
 
+            // 역할 권한 확인
             if (adminPaths.stream().anyMatch(path::startsWith) && !"ROLE_ADMIN".equals(role)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "어드민 권한이 필요합니다.");
             }
@@ -97,8 +78,8 @@ public class JWTFilter extends AbstractGatewayFilterFactory<JWTFilter.Config> {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
             }
 
-            exchange.mutate().request(builder -> builder.header("X-USER-ID", memberLoginId))
-                .build();
+            // 헤더 추가
+            exchange.mutate().request(builder -> builder.header("X-USER-ID", memberLoginId)).build();
             return chain.filter(exchange);
         };
     }
