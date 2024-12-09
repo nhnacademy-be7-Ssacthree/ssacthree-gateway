@@ -54,5 +54,37 @@ jobs:
             fuser -k 8081/tcp || echo "No process on 8081"
             chmod +x ./gateway_startup.sh
             ./gateway_startup.sh
+     # Prometheus 설치 및 설정
+      - name: Install and Configure Prometheus
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            if [ ! -d "/opt/prometheus" ]; then
+              echo "Installing Prometheus"
+              wget https://github.com/prometheus/prometheus/releases/download/v2.48.0/prometheus-2.48.0.linux-amd64.tar.gz
+              tar -xvf prometheus-2.48.0.linux-amd64.tar.gz
+              mv prometheus-2.48.0.linux-amd64 /opt/prometheus
+            fi
+
+            # Prometheus 설정 파일 생성/업데이트
+            cat <<EOT > /opt/prometheus/prometheus.yml
+            global:
+              scrape_interval: 15s
+
+            scrape_configs:
+              - job_name: 'gateway-service'
+                static_configs:
+                  - targets: ['133.186.210.215:8080'] # 게이트웨이 메트릭 엔드포인트
+            EOT
+
+            # Prometheus 실행
+            pkill prometheus || echo "Prometheus not running"
+            nohup /opt/prometheus/prometheus --config.file=/opt/prometheus/prometheus.yml > /opt/prometheus/prometheus.log 2>&1 &
+            
       - name: Run SonarQube
         run: mvn sonar:sonar -Dsonar.projectKey=ssacthree-gateway -Dsonar.projectName="ssacthree-gateway" -Dsonar.host.url=${{secrets.SONAR_HOST}} -Dsonar.token=${{secrets.SONAR_TOKEN}}
