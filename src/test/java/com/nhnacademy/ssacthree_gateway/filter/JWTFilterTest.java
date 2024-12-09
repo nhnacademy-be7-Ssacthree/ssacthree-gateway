@@ -10,14 +10,12 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpResponse;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
@@ -41,6 +39,7 @@ class JWTFilterTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
         // PathConfig Mock 설정
         when(pathConfig.getAllowedPaths()).thenReturn("/public");
         when(pathConfig.getMemberPaths()).thenReturn("/api/member");
@@ -55,8 +54,7 @@ class JWTFilterTest {
         // /public 경로로 요청 생성
         exchange = createExchange("/public", null);
 
-        // null 대신 new Object() 전달
-        jwtFilter.apply(new Object()).filter(exchange, chain);
+        executeFilter(exchange);
 
         // 체인이 실행되었는지 확인
         verify(chain, times(1)).filter(exchange);
@@ -67,9 +65,7 @@ class JWTFilterTest {
         // 토큰 없는 요청 생성
         exchange = createExchange("/api/member", null);
 
-        // null 대신 new Object() 전달
-        assertThrows(ResponseStatusException.class, () ->
-            jwtFilter.apply(new Object()).filter(exchange, chain));
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
@@ -78,9 +74,7 @@ class JWTFilterTest {
         exchange = createExchange("/api/member", "Bearer expiredToken");
         when(jwtUtil.isExpired("expiredToken")).thenReturn(true);
 
-        // null 대신 new Object() 전달
-        assertThrows(ResponseStatusException.class, () ->
-            jwtFilter.apply(new Object()).filter(exchange, chain));
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
@@ -90,9 +84,7 @@ class JWTFilterTest {
         when(jwtUtil.isExpired("validToken")).thenReturn(false);
         when(jwtUtil.getRole("validToken")).thenReturn("ROLE_USER");
 
-        // null 대신 new Object() 전달
-        assertThrows(ResponseStatusException.class, () ->
-            jwtFilter.apply(new Object()).filter(exchange, chain));
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
@@ -105,8 +97,7 @@ class JWTFilterTest {
         when(jwtUtil.getRole("validToken")).thenReturn("ROLE_USER");
         when(jwtUtil.getMemberLoginId("validToken")).thenReturn("user123");
 
-        // 필터 실행
-        jwtFilter.apply(new Object()).filter(exchange, chain);
+        executeFilter(exchange);
 
         // 체인이 실행되었는지 확인
         verify(chain, times(1)).filter(exchange);
@@ -117,8 +108,7 @@ class JWTFilterTest {
         // 요청 생성: POST 요청, /api/shop/members
         exchange = createExchange("/api/shop/members", "POST", null, null, null, null);
 
-        // 필터 실행
-        jwtFilter.apply(new Object()).filter(exchange, chain);
+        executeFilter(exchange);
 
         // 체인이 실행되었는지 확인
         verify(chain, times(1)).filter(exchange);
@@ -129,13 +119,15 @@ class JWTFilterTest {
         // 요청 생성: POST 요청, /api/shop/carts/cart, 쿼리 파라미터 포함
         exchange = createExchange("/api/shop/carts/cart", "POST", null, null, "customerId", "12345");
 
-        // 필터 실행
-        jwtFilter.apply(new Object()).filter(exchange, chain);
+        executeFilter(exchange);
 
         // 체인이 실행되었는지 확인
         verify(chain, times(1)).filter(exchange);
     }
 
+    private void executeFilter(ServerWebExchange exchange) {
+        jwtFilter.apply(new Object()).filter(exchange, chain).block(); // 비동기 실행을 동기식으로 처리
+    }
 
     private ServerWebExchange createExchange(String path, String authHeader) {
         MockServerHttpRequest.BaseBuilder<?> requestBuilder = MockServerHttpRequest.get(path);
@@ -155,17 +147,14 @@ class JWTFilterTest {
     private ServerWebExchange createExchange(String path, String method, String authHeader, String cookie, String queryParam, String queryValue) {
         MockServerHttpRequest.BaseBuilder<?> requestBuilder = MockServerHttpRequest.method(method, path);
 
-        // Authorization 헤더 추가
         if (authHeader != null) {
             requestBuilder.header(HttpHeaders.AUTHORIZATION, authHeader);
         }
 
-        // Cookie 추가
         if (cookie != null) {
             requestBuilder.cookie(new HttpCookie("access-token", cookie));
         }
 
-        // 쿼리 파라미터 추가
         if (queryParam != null && queryValue != null) {
             requestBuilder.queryParam(queryParam, queryValue);
         }

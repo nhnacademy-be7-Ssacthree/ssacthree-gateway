@@ -7,6 +7,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -30,57 +31,70 @@ public class JWTFilter extends AbstractGatewayFilterFactory<Object> {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
             String path = request.getURI().getPath();
+            HttpMethod method = request.getMethod();
 
-            List<String> allowedPaths = Arrays.stream(pathConfig.getAllowedPaths().split(",")).toList();
-            List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(",")).toList();
-            List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
-
-            // 특정 경로에 대한 필터 우회 처리
-            if (path.equals("/api/shop/members") && request.getMethod().toString().equals("POST")) {
+            if (isBypassPath(path, method, request)) {
                 return chain.filter(exchange);
             }
 
-            if (path.equals("/api/shop/search/books") && request.getMethod().toString().equals("GET")) {
+            if (isAllowedPath(path)) {
                 return chain.filter(exchange);
             }
 
-            if (path.equals("/api/shop/carts/cart")
-                && request.getMethod().toString().equals("POST")
-                && request.getQueryParams().containsKey("customerId")) {
-                return chain.filter(exchange);
-            }
+            validateAccessToken(request);
 
-            // 허용된 경로라면 필터를 건너뜀
-            if (allowedPaths.stream().anyMatch(path::startsWith)) {
-                return chain.filter(exchange);
-            }
-
-            // 토큰 유효성 검사
-            if (!request.getCookies().containsKey("access-token")) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-            }
-
-            String accessToken = request.getCookies().get("access-token").getFirst().toString().split("=")[1];
-
-            if (jwtUtil.isExpired(accessToken)) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
-            }
+            String accessToken = extractAccessToken(request);
+            validateTokenExpiration(accessToken);
 
             String memberLoginId = jwtUtil.getMemberLoginId(accessToken);
             String role = jwtUtil.getRole(accessToken);
 
-            // 역할 권한 확인
-            if (adminPaths.stream().anyMatch(path::startsWith) && !"ROLE_ADMIN".equals(role)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "어드민 권한이 필요합니다.");
-            }
+            validateRoleAccess(path, role);
 
-            if (memberPaths.stream().anyMatch(path::startsWith) && !"ROLE_USER".equals(role)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
-            }
-
-            // 헤더 추가
+            // Add user ID to the request header
             exchange.mutate().request(builder -> builder.header("X-USER-ID", memberLoginId)).build();
             return chain.filter(exchange);
         };
+    }
+
+    private boolean isBypassPath(String path, HttpMethod method, ServerHttpRequest request) {
+        return (path.equals("/api/shop/members") && method == HttpMethod.POST) ||
+            (path.equals("/api/shop/search/books") && method == HttpMethod.GET) ||
+            (path.equals("/api/shop/carts/cart") && method == HttpMethod.POST &&
+                request.getQueryParams().containsKey("customerId"));
+    }
+
+    private boolean isAllowedPath(String path) {
+        List<String> allowedPaths = Arrays.stream(pathConfig.getAllowedPaths().split(",")).toList();
+        return allowedPaths.stream().anyMatch(path::startsWith);
+    }
+
+    private void validateAccessToken(ServerHttpRequest request) {
+        if (!request.getCookies().containsKey("access-token")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+    }
+
+    private String extractAccessToken(ServerHttpRequest request) {
+        return request.getCookies().get("access-token").getFirst().toString().split("=")[1];
+    }
+
+    private void validateTokenExpiration(String accessToken) {
+        if (Boolean.TRUE.equals(jwtUtil.isExpired(accessToken))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다.");
+        }
+    }
+
+    private void validateRoleAccess(String path, String role) {
+        List<String> adminPaths = Arrays.stream(pathConfig.getAdminPaths().split(",")).toList();
+        List<String> memberPaths = Arrays.stream(pathConfig.getMemberPaths().split(",")).toList();
+
+        if (adminPaths.stream().anyMatch(path::startsWith) && !"ROLE_ADMIN".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "어드민 권한이 필요합니다.");
+        }
+
+        if (memberPaths.stream().anyMatch(path::startsWith) && !"ROLE_USER".equals(role)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "멤버 권한이 필요합니다.");
+        }
     }
 }
