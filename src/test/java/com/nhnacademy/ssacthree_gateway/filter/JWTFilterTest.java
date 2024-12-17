@@ -8,20 +8,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpResponse;
-import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class JWTFilterTest {
@@ -43,77 +39,104 @@ class JWTFilterTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        // 설정된 경로 리스트 모킹
+
+        // PathConfig Mock 설정
         when(pathConfig.getAllowedPaths()).thenReturn("/public");
         when(pathConfig.getMemberPaths()).thenReturn("/api/member");
         when(pathConfig.getAdminPaths()).thenReturn("/api/admin");
 
-        // 기본적인 chain 설정 모킹
+        // 기본적인 chain 설정 Mock
         when(chain.filter(any(ServerWebExchange.class))).thenReturn(Mono.empty());
     }
 
     @Test
     void testFilter_AllowedPath() {
-        // /public 경로로 요청을 보내도록 설정
-        exchange = createExchange("/public");
+        // /public 경로로 요청 생성
+        exchange = createExchange("/public", null);
 
-        jwtFilter.apply(new JWTFilter.Config()).filter(exchange, chain);
+        executeFilter(exchange);
 
-        // 체인이 정상적으로 실행됐는지 확인
+        // 체인이 실행되었는지 확인
         verify(chain, times(1)).filter(exchange);
     }
 
     @Test
-    void testFilter_NoAuthorizationHeader() {
-        // Authorization 헤더가 없는 요청
-        exchange = createExchange("/api/member");
+    void testFilter_NoAccessToken() {
+        // 토큰 없는 요청 생성
+        exchange = createExchange("/api/member", null);
 
-        // 예외 발생 여부 확인
-        assertThrows(ResponseStatusException.class, () ->
-                jwtFilter.apply(new JWTFilter.Config()).filter(exchange, chain),
-            "토큰을 찾을 수 없거나, 유효하지 않습니다.");
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
-    void testFilter_TokenExpired() {
-        // Authorization 헤더가 있는 요청 및 만료된 토큰 설정
-        exchange = createExchangeWithAuth("/api/member", "Bearer expiredToken");
+    void testFilter_ExpiredToken() {
+        // 만료된 토큰 요청 생성
+        exchange = createExchange("/api/member", "Bearer expiredToken");
         when(jwtUtil.isExpired("expiredToken")).thenReturn(true);
 
-        assertThrows(ResponseStatusException.class, () ->
-                jwtFilter.apply(new JWTFilter.Config()).filter(exchange, chain),
-            "토큰이 만료되었습니다.");
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
-    void testFilter_AdminAccessWithoutAdminRole() {
-        // 관리자 권한이 필요한 경로로 요청을 보내지만, ROLE_USER 토큰 사용
-        exchange = createExchangeWithAuth("/api/admin", "Bearer validToken");
+    void testFilter_InvalidRoleForAdminPath() {
+        // ROLE_USER로 관리자 경로 요청
+        exchange = createExchange("/api/admin", "Bearer validToken");
         when(jwtUtil.isExpired("validToken")).thenReturn(false);
         when(jwtUtil.getRole("validToken")).thenReturn("ROLE_USER");
 
-        assertThrows(ResponseStatusException.class, () ->
-                jwtFilter.apply(new JWTFilter.Config()).filter(exchange, chain),
-            "어드민 권한이 필요합니다.");
+        assertThrows(ResponseStatusException.class, () -> executeFilter(exchange));
     }
 
     @Test
-    void testFilter_MemberAccessWithoutMemberRole() {
-        // 멤버 권한이 필요한 경로로 요청을 보내지만, ROLE_ADMIN 토큰 사용
-        exchange = createExchangeWithAuth("/api/member", "Bearer validToken");
-        when(jwtUtil.isExpired("validToken")).thenReturn(false);
-        when(jwtUtil.getRole("validToken")).thenReturn("ROLE_ADMIN");
+    void testFilter_ValidTokenWithValidRole() {
+        // 요청 생성: 멤버 경로, GET, 유효한 토큰
+        exchange = createExchange("/api/member", "GET", null, "validToken", null, null);
 
-        assertThrows(ResponseStatusException.class, () ->
-                jwtFilter.apply(new JWTFilter.Config()).filter(exchange, chain),
-            "멤버 권한이 필요합니다.");
+        // Mock 설정
+        when(jwtUtil.isExpired("validToken")).thenReturn(false);
+        when(jwtUtil.getRole("validToken")).thenReturn("ROLE_USER");
+        when(jwtUtil.getMemberLoginId("validToken")).thenReturn("user123");
+
+        executeFilter(exchange);
+
+        // 체인이 실행되었는지 확인
+        verify(chain, times(1)).filter(exchange);
     }
 
-    private ServerWebExchange createExchange(String path) {
-        ServerHttpRequest request = MockServerHttpRequest.get(path).build();
+    @Test
+    void testFilter_BypassForMembersPath() {
+        // 요청 생성: POST 요청, /api/shop/members
+        exchange = createExchange("/api/shop/members", "POST", null, null, null, null);
+
+        executeFilter(exchange);
+
+        // 체인이 실행되었는지 확인
+        verify(chain, times(1)).filter(exchange);
+    }
+
+    @Test
+    void testFilter_BypassForCartsPathWithCustomerId() {
+        // 요청 생성: POST 요청, /api/shop/carts/cart, 쿼리 파라미터 포함
+        exchange = createExchange("/api/shop/carts/cart", "POST", null, null, "customerId", "12345");
+
+        executeFilter(exchange);
+
+        // 체인이 실행되었는지 확인
+        verify(chain, times(1)).filter(exchange);
+    }
+
+    private void executeFilter(ServerWebExchange exchange) {
+        jwtFilter.apply(new Object()).filter(exchange, chain).block(); // 비동기 실행을 동기식으로 처리
+    }
+
+    private ServerWebExchange createExchange(String path, String authHeader) {
+        MockServerHttpRequest.BaseBuilder<?> requestBuilder = MockServerHttpRequest.get(path);
+        if (authHeader != null) {
+            requestBuilder.header(HttpHeaders.AUTHORIZATION, authHeader); // Authorization 헤더 추가
+        }
         return mock(ServerWebExchange.class, invocation -> {
             if (invocation.getMethod().getName().equals("getRequest")) {
-                return request;
+                return requestBuilder.build();
             } else if (invocation.getMethod().getName().equals("getResponse")) {
                 return new MockServerHttpResponse();
             }
@@ -121,13 +144,24 @@ class JWTFilterTest {
         });
     }
 
-    private ServerWebExchange createExchangeWithAuth(String path, String authHeader) {
-        ServerHttpRequest request = MockServerHttpRequest.get(path)
-            .header(HttpHeaders.AUTHORIZATION, authHeader)
-            .build();
+    private ServerWebExchange createExchange(String path, String method, String authHeader, String cookie, String queryParam, String queryValue) {
+        MockServerHttpRequest.BaseBuilder<?> requestBuilder = MockServerHttpRequest.method(method, path);
+
+        if (authHeader != null) {
+            requestBuilder.header(HttpHeaders.AUTHORIZATION, authHeader);
+        }
+
+        if (cookie != null) {
+            requestBuilder.cookie(new HttpCookie("access-token", cookie));
+        }
+
+        if (queryParam != null && queryValue != null) {
+            requestBuilder.queryParam(queryParam, queryValue);
+        }
+
         return mock(ServerWebExchange.class, invocation -> {
             if (invocation.getMethod().getName().equals("getRequest")) {
-                return request;
+                return requestBuilder.build();
             } else if (invocation.getMethod().getName().equals("getResponse")) {
                 return new MockServerHttpResponse();
             }
